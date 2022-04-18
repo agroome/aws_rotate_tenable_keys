@@ -12,7 +12,7 @@ Resources:
     Properties:
       Name: 'apikeys/agroome@demo.io'
       Description: Tenable API Key
-      SecretString: "{\"accessKey\":\"!Ref TioAccessKey\",\"secretKey\":\"!Ref TioSecretKey\"}"
+      SecretString: !Sub '{"accessKey":"${TioAccessKey}","secretKey":"${TioSecretKey}"}'
 
   ApiKeyRotationSchedule:
     Type: AWS::SecretsManager::RotationSchedule
