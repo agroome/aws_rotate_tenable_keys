@@ -1,0 +1,49 @@
+Transform: 'AWS::Serverless-2016-10-31'
+Parameters:
+  TioAccessKey:
+    Type: String
+    Default: Change Me
+  TioSecretKey:
+    Type: String
+    Default: Change Me
+Resources:
+  TestApiKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: 'apikeys/agroome@demo.io'
+      Description: Tenable API Key
+      SecretString: "{\"accessKey\":\"!Ref TioAccessKey\",\"secretKey\":\"!Ref TioSecretKey\"}"
+
+  ApiKeyRotationSchedule:
+    Type: AWS::SecretsManager::RotationSchedule
+    Properties:
+      RotationLambdaARN: !GetAtt ApiKeyRotationLambda.Arn
+      RotationRules:
+        AutomaticallyAfterDays: 7
+      SecretId: !Ref TestApiKey
+
+  ApiKeyRotationLambda:
+    Name: aws_rotate_tenable_keys
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.9
+      Handler: app.lambda_handler
+      CodeUri: ./aws_rotate_tenable_keys
+      Policies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:DescribeSecret
+                - secretsmanager:GetSecretValue
+                - secretsmanager:PutSecretValue
+                - secretsmanager:UpdateSecretVersionStage
+                - secretsmanager:ListSecrets
+              Resource: '*'
+
+  ApiKeyRotationLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ApiKeyRotationLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: secretsmanager.amazonaws.com
