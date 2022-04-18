@@ -7,7 +7,7 @@ Parameters:
     Type: String
     Default: Change Me
 Resources:
-  TestApiKey:
+  TenableApiKey:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: 'apikeys/agroome@demo.io'
@@ -20,12 +20,12 @@ Resources:
       RotationLambdaARN: !GetAtt ApiKeyRotationLambda.Arn
       RotationRules:
         AutomaticallyAfterDays: 7
-      SecretId: !Ref TestApiKey
+      SecretId: !Ref TenableApiKey
 
   ApiKeyRotationLambda:
-    Name: aws_rotate_tenable_keys
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: rotate_tenable_keys
       Runtime: python3.9
       Handler: app.lambda_handler
       CodeUri: ./aws_rotate_tenable_keys
