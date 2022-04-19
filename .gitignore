@@ -1,3 +1,4 @@
+/.aws-sam/
 # pyCharm files
 .idea/
 # Byte-compiled / optimized / DLL files
@@ -129,4 +130,3 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-/.aws-sam/

@@ -1,29 +1,48 @@
 Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
+  ApiKeysPrefix:
+    Type: String
+    Default: apikeys
+  TioUsername:
+    Type: String
+    Default: notconfigured
   TioAccessKey:
     Type: String
     Default: Change Me
   TioSecretKey:
     Type: String
     Default: Change Me
+  RotationDays:
+    Type: Number
+    Default: 7
+
 Resources:
   TenableApiKey:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: 'apikeys/agroome@demo.io'
+      Name: !Sub '${ApiKeysPrefix}/${TioUsername}'
       Description: Tenable API Key
-      SecretString: !Sub '{"accessKey":"${TioAccessKey}","secretKey":"${TioSecretKey}"}'
+      Tags:
+        - Key: TioRole
+          Value: Admin
+        - Key: TioUser
+          Value: !Sub '${TioUsername}'
+
+      SecretString: !Sub '{"accessKey":"${TioAccessKey}","secretKey":"${TioSecretKey}","tioUsername":"${TioUsername}"}'
 
   ApiKeyRotationSchedule:
     Type: AWS::SecretsManager::RotationSchedule
     Properties:
       RotationLambdaARN: !GetAtt ApiKeyRotationLambda.Arn
       RotationRules:
-        AutomaticallyAfterDays: 7
+        AutomaticallyAfterDays: !Sub '${RotationDays}'
       SecretId: !Ref TenableApiKey
 
   ApiKeyRotationLambda:
     Type: AWS::Serverless::Function
+#    Environment:
+#      Variables:
+#        primarySecret: !GetAtt TenableApiKey.Arn
     Properties:
       FunctionName: rotate_tenable_keys
       Runtime: python3.9
@@ -38,6 +57,9 @@ Resources:
                 - secretsmanager:GetSecretValue
                 - secretsmanager:PutSecretValue
                 - secretsmanager:UpdateSecretVersionStage
+              Resource: !Ref TenableApiKey
+            - Effect: Allow
+              Action:
                 - secretsmanager:ListSecrets
               Resource: '*'
 
