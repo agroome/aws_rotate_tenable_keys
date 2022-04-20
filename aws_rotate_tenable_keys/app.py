@@ -8,8 +8,6 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# tio_username = os.getenv('TioUsername', 'os.getenv: TioUsername not found in environment')
-
 
 def lambda_handler(event, context):
     logger.info(f'Step is {event.get("Step")}')
@@ -26,6 +24,7 @@ def lambda_handler(event, context):
         if not ('accessKey' in current_secret and 'secretKey' in current_secret):
             logger.error('secret must be key/value pairs including, values for accessKey and secretKey')
             raise KeyError
+        logger.info(f'tioUsername: {current_secret["tioUsername"]}')
 
         # generate new keys (warning: invalidates the existing key)
         response = generate_tio_keys(current_secret)
@@ -35,21 +34,36 @@ def lambda_handler(event, context):
             secret_string = json.dumps(current_secret)
             client.put_secret_value(SecretId=secret_arn, SecretString=secret_string)
         else:
-            logger.error(f'generate keys status: {response.status}')
+            logger.error(f'unable to generate keys [{response.status}]: secret not updated: {response.status}')
 
 
-def generate_tio_keys(key_pair: dict):
+def generate_tio_keys(current_secret: dict):
     """Use the existing key pair to generate and return a new key pair"""
     headers = {
-        'X-ApiKeys': 'accessKey={accessKey};secretKey={secretKey}'.format(**key_pair),
+        'X-ApiKeys': 'accessKey={accessKey};secretKey={secretKey}'.format(**current_secret),
         'Accept': 'application/json'
     }
+    user_id = None
     http = urllib3.PoolManager()
-    resp = http.request(
-        "PUT", "https://cloud.tenable.com/users/2/keys",
-        headers=headers
-    )
-    return resp
+    resp = http.request("GET", "https://cloud.tenable.com/users", headers=headers)
+    logger.info(f'get user list returns {resp.status}')
+    if resp.status == 200:
+        users = json.loads(resp.data).get('users', [])
+        for user in users:
+            logger.info(f'account user is {user["username"]} vs {current_secret["tioUsername"]}')
+            if user['username'] == current_secret['tioUsername']:
+                user_id = user['id']
+                break
+    if user_id is not None:
+        logger.info(f'user id is {user_id}')
+        resp = http.request(
+            "PUT", f"https://cloud.tenable.com/users/{user_id}/keys", headers=headers
+        )
+        logger.info(f'generate status is {resp.status}')
+        return resp
+    else:
+        logger.error(f'account not found: <{current_secret.get("tioUsername")}>')
+        raise LookupError(f'account not found: <{current_secret.get("tioUsername")}>')
 
 
 def get_current_secret(secrets_client, secret_arn):
