@@ -12,11 +12,11 @@ Parameters:
   TioAccessKey:
     Type: String
     Default: Change Me
-    NoEcho: True
+    # NoEcho: True
   TioSecretKey:
     Type: String
     Default: Change Me
-    NoEcho: True
+    # NoEcho: True
   RotationDays:
     Type: Number
     Default: 7
@@ -49,7 +49,7 @@ Resources:
     Properties:
       FunctionName: rotate_tenable_keys
       Runtime: python3.9
-      Handler: rotate.lambda_handler
+      Handler: rotate_new.lambda_handler
       CodeUri: ./app
       Policies:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
