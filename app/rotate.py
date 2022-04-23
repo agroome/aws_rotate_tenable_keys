@@ -24,11 +24,7 @@ def lambda_handler(event, context):
                - ClientRequestToken: The ClientRequestToken of the secret version
                - Step: The rotation step (one of createSecret, setSecret, testSecret, or finishSecret)
            context (LambdaContext): The Lambda runtime information
-       Raises:
-           ResourceNotFoundException: If the secret with the specified arn and stage does not exist
-           ValueError: If the secret is not properly configured for rotation
-           KeyError: If the secret json does not contain the expected keys
-       """
+    """
     logger.debug(f'event: {event}')
     # Exit early if not a valid 'Step'
     if event.get('Step') not in ['createSecret', 'finishSecret']:
@@ -103,17 +99,9 @@ class Secret:
         self.secret_value = json.loads(value_string)
         self.arn = secret['ARN']
         self.secret = secret
-        self.tags = {tag['Key']: tag['Value'] for tag in self.secret['Tags']}
+        self.tags = {tag['Key']: tag['Value'] for tag in self.secret.get('Tags', [])}
         logger.debug(f'Secret.__init__: arn: {secret["ARN"]}')
         logger.debug(f'Secret.__init__: name: {secret["Name"]}')
-
-    # def _get_secret_values(self):
-    #     if self._secret_value is None:
-    #         logger.info(f'getting secret value for {self.arn}')
-    #         values = self.secrets_manager.get_secret_value(SecretId=self.arn)
-    #         return json.loads(values['SecretString'])
-    #     else:
-    #         return self._secret_value
 
     @property
     def domain(self):
@@ -149,41 +137,6 @@ class Secret:
         return f'{self.__class__.__name__}[{self.arn}]'
 
 
-# class SecretsManager:
-#     def __init__(self, prefix=None):
-#         self.client = boto3.client('secretsmanager')
-#         self.prefix = prefix
-#         self._secrets = None
-#
-#     def filter_domain_admins(self, domain=None):
-#         for secret in self.secrets:
-#             tags = {tag['Key']: tag['Value'] for tag in secret['Tags']}
-#             if tags.get('tioRole') == 'Admin' and domain is None or tags.get('tioUsername', '').split('@')[-1] == domain:
-#                 yield secret
-#
-#     # def name_to_secret(self, name) -> Secret:
-#     #     secret_obj = None
-#     #     for secret in self.secrets:
-#     #         if secret['Name'] == name:
-#     #             secret_obj = Secret(self.client, secret)
-#     #             break
-#     #     return secret_obj
-#
-#     def arn_to_secret(self, secret_arn) -> Secret:
-#         return self.client.describe_secret(SecretId=secret_arn)
-#
-#     @property
-#     def secrets(self):
-#         if self._secrets is None:
-#             self._secrets = self.client.list_secrets()['SecretList']
-#         return self._secrets
-#
-#     def get_admin_secret(self, domain: str):
-#         secrets = list(self.filter_domain_admins(domain))
-#         if secrets:
-#             return Secret(self.client, secrets[0])
-#
-
 class TenableHelper:
     def __init__(self, admin_secret, base_url='https://cloud.tenable.com'):
         self.admin_secret = admin_secret
@@ -194,7 +147,7 @@ class TenableHelper:
 
     def users(self):
         response = self.client.request('GET', f'{self.base_url}/users', headers=self.request_headers)
-        logger.info(f'GET users status: {response.status}')
+        logger.info(f'GET users() status: {response.status}')
         data = json.loads(response.data)
         logger.info(f'GET users data: {data}')
         return data.get('users')
@@ -221,5 +174,5 @@ class TenableHelper:
             logger.info(f'generated new api keys for {username}')
             return json.loads(resp.data)
         else:
-            logger.error(f'generate_api_keys({username})[{resp.status}]: {getattr(resp, "body")}')
+            logger.error(f'generate_api_keys({username})=[{resp.status}]')
 
