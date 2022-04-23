@@ -49,7 +49,7 @@ Resources:
     Properties:
       FunctionName: rotate_tenable_keys
       Runtime: python3.9
-      Handler: rotate_new.lambda_handler
+      Handler: rotate.lambda_handler
       CodeUri: ./app
       Policies:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
