@@ -26,9 +26,9 @@ def lambda_handler(event, context):
            context (LambdaContext): The Lambda runtime information
     """
     logger.debug(f'event: {event}')
+
     # Exit early if not a valid 'Step'
     if event.get('Step') not in ['createSecret', 'finishSecret']:
-        logger.debug(f'step \'{event.get("Step")}\'": not implemented for this type rotation')
         # the secrets manager calls the rotation function in four steps to test and deploy the
         # new credentials. 'generate_key' activates the new credentials, so we only need one step
         return
@@ -37,28 +37,22 @@ def lambda_handler(event, context):
     secret_arn = event.get('SecretId')
     request_token = event.get('ClientRequestToken')
     if not (secret_arn and request_token):
-        # SecretsManager service should always pass the secret arn and a request token
-        logger.error(f'passed in event must have a SecretId and ClientRequestToken: {event}')
+        logger.error(f'event must include a SecretId and ClientRequestToken: {event}')
         return
 
-    # secrets_manager = SecretsManager()
     secrets_manager = boto3.client('secretsmanager')
-    secret = Secret.from_arn(secrets_manager, secret_arn)
 
     if event['Step'] == 'createSecret':
-        # generating API keys requires admin credentials from the same domain (instance)
-        # admin_secret = secrets_manager.get_admin_secret(secret.domain)
-        # if not admin_secret:
-        #     logger.error(f'admin secret not found for instance associated with {secret.username}')
-        #     return
-        # logger.info(f'discovered admin secret {admin_secret} for {secret.domain}')
+        user_secret = Secret.from_arn(secrets_manager, secret_arn)
+        # assume this user is an admin unless there is an 'adminArn' 
+        # stored in the secret
+        admin_secret = user_secret
+        if 'adminArn' in user_secret:
+            admin_secret = Secret.from_arn(secrets_manager, user_secret['adminArn'])
 
-        # TODO: kluge here (using the same key so only works for admins now
-        current_secret = Secret.from_arn(secrets_manager, secret_arn)
-
-        new_keys = TenableHelper(current_secret).generate_api_keys(secret.username)
+        new_keys = TenableHelper(admin_secret).generate_api_keys(user_secret.username)
         if new_keys is not None:
-            secret.update_secret(new_keys)
+            user_secret.update_secret(new_keys)
 
         if False and event['Step'] == 'finishSecret':
             # First describe the secret to get the current version
