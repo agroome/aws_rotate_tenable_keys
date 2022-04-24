@@ -62,7 +62,7 @@ Resources:
                 - secretsmanager:UpdateSecretVersionStage
               Resource: 
                 - !Ref TenableApiKey
-                - arn:aws:secretsmanager:us-east-1:773284714180:secret:apikeys/ag_operator@test.tenable-LMxDcl
+                - arn:aws:secretsmanager:us-east-1:773284714180:secret:apikeys/*
             - Effect: Allow
               Action:
                 - secretsmanager:ListSecrets

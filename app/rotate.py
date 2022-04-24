@@ -44,37 +44,39 @@ def lambda_handler(event, context):
 
     if event['Step'] == 'createSecret':
         user_secret = Secret.from_arn(secrets_manager, secret_arn)
-        # assume this user is an admin unless there is an 'adminArn' 
-        # stored in the secret
-        admin_secret = user_secret
-        if 'adminArn' in user_secret:
-            admin_secret = Secret.from_arn(secrets_manager, user_secret['adminArn'])
+        # if there is an 'adminArn' value stored in the secret
+        # then that points to the admin key we need to use
+        # otherwise we assume this is an admin key
+        if 'adminArn' in user_secret.secret_value:
+            admin_secret = Secret.from_arn(secrets_manager, user_secret.secret_value['adminArn'])
+        else:
+            admin_secret = user_secret
 
-        new_keys = TenableHelper(admin_secret).generate_api_keys(user_secret.username)
+        new_keys = TenableHelper(admin_secret).generate_api_keys(user_secret.secret_value['tioUsername'])
         if new_keys is not None:
             user_secret.update_secret(new_keys)
 
-        if False and event['Step'] == 'finishSecret':
-            # First describe the secret to get the current version
-            metadata = secrets_manager.describe_secret(SecretId=event['SecretId'])
-            current_version = None
-            for version in metadata["VersionIdsToStages"]:
-                if "AWSCURRENT" in metadata["VersionIdsToStages"][version]:
-                    if version == request_token:
-                        # The correct version is already marked as current, return
-                        logger.info("finishSecret: Version %s already marked as AWSCURRENT for %s" % (version, secret_arn))
-                        return
-                    current_version = version
-                    break
+    if False and event['Step'] == 'finishSecret':
+        # First describe the secret to get the current version
+        metadata = secrets_manager.describe_secret(SecretId=event['SecretId'])
+        current_version = None
+        for version in metadata["VersionIdsToStages"]:
+            if "AWSCURRENT" in metadata["VersionIdsToStages"][version]:
+                if version == request_token:
+                    # The correct version is already marked as current, return
+                    logger.info("finishSecret: Version %s already marked as AWSCURRENT for %s" % (version, secret_arn))
+                    return
+                current_version = version
+                break
 
-            # Finalize by staging the secret version current
-            logger.debug("finishSecret: Setting AWSCURRENT stage ")
-            secrets_manager.update_secret_version_stage(
+        # Finalize by staging the secret version current
+        logger.debug("finishSecret: Setting AWSCURRENT stage ")
+        secrets_manager.update_secret_version_stage(
                 SecretId=event['SecretId'],
                 VersionStage="AWSCURRENT",
                 MoveToVersionId=request_token,
                 RemoveFromVersionId=current_version)
-            logger.debug("finishSecret: Successfully set AWSCURRENT stage to version %s for secret %s." % (request_token, secret_arn))
+        logger.debug("finishSecret: Successfully set AWSCURRENT stage to version %s for secret %s." % (request_token, secret_arn))
 
 
 class Secret:
