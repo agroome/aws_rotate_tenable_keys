@@ -1,10 +1,9 @@
 import boto3
 import json
-from pprint import pprint
-import logging
 import urllib3
+import logging
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
@@ -27,7 +26,7 @@ def lambda_handler(event, context):
     """
     logger.debug(f'event: {event}')
 
-    # Exit early if not a valid 'Step'
+    # Exit early if not an implemented 'Step'
     if event.get('Step') not in ['createSecret', 'finishSecret']:
         # the secrets manager calls the rotation function in four steps to test and deploy the
         # new credentials. 'generate_key' activates the new credentials, so we only need one step
@@ -44,9 +43,7 @@ def lambda_handler(event, context):
 
     if event['Step'] == 'createSecret':
         user_secret = Secret.from_arn(secrets_manager, secret_arn)
-        # if there is an 'adminArn' value stored in the secret
-        # then that points to the admin key we need to use
-        # otherwise we assume this is an admin key
+        # non admins will have an 'adminArn' value stored in the secret
         if 'adminArn' in user_secret.secret_value:
             admin_secret = Secret.from_arn(secrets_manager, user_secret.secret_value['adminArn'])
         else:
@@ -78,6 +75,48 @@ def lambda_handler(event, context):
                 MoveToVersionId=request_token,
                 RemoveFromVersionId=current_version)
         logger.debug("finishSecret: Successfully set AWSCURRENT stage to version %s for secret %s." % (request_token, secret_arn))
+
+
+class TenableHelper:
+    def __init__(self, admin_secret, base_url='https://cloud.tenable.com'):
+        self.admin_secret = admin_secret
+        self.client = urllib3.PoolManager()
+        self.request_headers = {'Accept': 'application/json'}
+        self.request_headers.update(self.admin_secret.x_api_keys)
+        self.base_url = base_url
+
+    def users(self):
+        response = self.client.request('GET', f'{self.base_url}/users', headers=self.request_headers)
+        if response.status == 200:
+            data = json.loads(response.data)
+            return data['users']
+        else:
+            logger.error(f'GET users(): {response}')
+            raise Exception(response.data)
+
+    def get_user_id(self, username):
+        for user in self.users():
+            if user['username'] == username:
+                break
+        else:
+            user = {}
+        return user.get('id')
+
+    def get_user_details(self, user_id):
+        url = f'{self.base_url}/users/{user_id}'
+        response = self.client.request('GET', url, headers=self.request_headers)
+        return json.loads(response.data)
+
+    def generate_api_keys(self, username: str):
+        user_id = self.get_user_id(username)
+        """Use the existing key pair to generate and return a new key pair"""
+        url = f"https://cloud.tenable.com/users/{user_id}/keys"
+        resp = self.client.request("PUT", url, headers=self.request_headers)
+        if resp.status == 200:
+            logger.info(f'generated new api keys for {username}')
+            return json.loads(resp.data)
+        else:
+            logger.error(f'generate_api_keys({username})=[{resp.status}]')
 
 
 class Secret:
@@ -130,46 +169,5 @@ class Secret:
         logger.info(f'put_secret_value returns {result}')
 
     def __repr__(self):
-        return f'{self.__class__.__name__}[{self.arn}]'
-
-
-class TenableHelper:
-    def __init__(self, admin_secret, base_url='https://cloud.tenable.com'):
-        self.admin_secret = admin_secret
-        self.client = urllib3.PoolManager()
-        self.request_headers = {'Accept': 'application/json'}
-        self.request_headers.update(self.admin_secret.x_api_keys)
-        self.base_url = base_url
-
-    def users(self):
-        response = self.client.request('GET', f'{self.base_url}/users', headers=self.request_headers)
-        if response.status == 200:
-            data = json.loads(response.data)
-        else:
-            logger.error(f'GET users() status: {response.status}')
-        return data.get('users', [])
-
-    def get_user_id(self, username):
-        for user in self.users():
-            if user['username'] == username:
-                break
-        else:
-            user = {}
-        return user.get('id')
-
-    def get_user_details(self, user_id):
-        url = f'{self.base_url}/users/{user_id}'
-        response = self.client.request('GET', url, headers=self.request_headers)
-        return json.loads(response.data)
-
-    def generate_api_keys(self, username: str):
-        user_id = self.get_user_id(username)
-        """Use the existing key pair to generate and return a new key pair"""
-        url = f"https://cloud.tenable.com/users/{user_id}/keys"
-        resp = self.client.request("PUT", url, headers=self.request_headers)
-        if resp.status == 200:
-            logger.info(f'generated new api keys for {username}')
-            return json.loads(resp.data)
-        else:
-            logger.error(f'generate_api_keys({username})=[{resp.status}]')
+        return f'{self.__class__.__name__}(name={self.secret["Name"]}, arn={self.secret["ARN"]})'
 
