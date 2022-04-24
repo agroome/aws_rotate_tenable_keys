@@ -3,9 +3,6 @@ Parameters:
   ApiKeysPrefix:
     Type: String
     Default: apikeys
-  TioDomain:
-    Type: String
-    Default: notconfigured
   TioUsername:
     Type: String
     Default: notconfigured
@@ -25,16 +22,12 @@ Resources:
   TenableApiKey:
     Type: AWS::SecretsManager::Secret
     Properties:
+      Name: !Sub '${ApiKeysPrefix}/${TioUsername}'
       Description: Tenable API Key
+      SecretString: !Sub '{"accessKey":"${TioAccessKey}","secretKey":"${TioSecretKey}","tioUsername":"${TioUsername}"}'
       Tags:
         - Key: tioRole
           Value: Admin
-        - Key: tioDomain
-          Value: !Sub '${TioDomain}'
-        - Key: tioUsername
-          Value: !Sub '${TioUsername}'
-
-      SecretString: !Sub '{"accessKey":"${TioAccessKey}","secretKey":"${TioSecretKey}","tioUsername":"${TioUsername}"}'
 
   ApiKeyRotationSchedule:
     Type: AWS::SecretsManager::RotationSchedule
