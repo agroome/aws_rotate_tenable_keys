@@ -9,11 +9,11 @@ Parameters:
   TioAccessKey:
     Type: String
     Default: Change Me
-    # NoEcho: True
+    NoEcho: True
   TioSecretKey:
     Type: String
     Default: Change Me
-    # NoEcho: True
+    NoEcho: True
   RotationDays:
     Type: Number
     Default: 7
