@@ -54,6 +54,7 @@ def lambda_handler(event, context):
 
         new_keys = TenableHelper(admin_secret).generate_api_keys(user_secret.secret_value['tioUsername'])
         if new_keys is not None:
+            logger.info(f'updating secret for {user_secret.username}')
             user_secret.update_secret(new_keys)
 
     if False and event['Step'] == 'finishSecret':
@@ -123,11 +124,10 @@ class Secret:
     def update_secret(self, key_pair):
         new_secret = self.secret_value
         new_secret.update(key_pair)
-        self.secrets_manager.put_secret_value(
-            SecretId=self.arn,
-            SecretString=json.dumps(new_secret),
-            VersionStages=['AWSCURRENT']
+        result = self.secrets_manager.put_secret_value(
+            SecretId=self.arn, SecretString=json.dumps(new_secret), VersionStages=['AWSCURRENT']
         )
+        logger.info(f'put_secret_value returns {result}')
 
     def __repr__(self):
         return f'{self.__class__.__name__}[{self.arn}]'
@@ -143,10 +143,11 @@ class TenableHelper:
 
     def users(self):
         response = self.client.request('GET', f'{self.base_url}/users', headers=self.request_headers)
-        logger.info(f'GET users() status: {response.status}')
-        data = json.loads(response.data)
-        logger.info(f'GET users data: {data}')
-        return data.get('users')
+        if response.status == 200:
+            data = json.loads(response.data)
+        else:
+            logger.error(f'GET users() status: {response.status}')
+        return data.get('users', [])
 
     def get_user_id(self, username):
         for user in self.users():
