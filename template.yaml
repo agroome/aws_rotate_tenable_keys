@@ -1,11 +1,15 @@
 Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
+  TioDomain:
+    Type: String
+    Default: example.com
+    Description: this is a test
+  TioUsername:
+    Type: String
+    Default: 'user@example.com'
   ApiKeysPrefix:
     Type: String
     Default: apikeys
-  TioUsername:
-    Type: String
-    Default: notconfigured
   TioAccessKey:
     Type: String
     Default: Change Me
@@ -26,8 +30,12 @@ Resources:
       Description: Tenable API Key
       SecretString: !Sub '{"accessKey":"${TioAccessKey}","secretKey":"${TioSecretKey}","tioUsername":"${TioUsername}"}'
       Tags:
-        - Key: tioRole
-          Value: Admin
+        - Key: tenable-key-type
+          Value: tio
+        - Key: tenable-domain
+          Value: !Sub '${TioDomain}'
+        - Key: tenable-role
+          Value: Administrator
 
   ApiKeyRotationSchedule:
     Type: AWS::SecretsManager::RotationSchedule
@@ -53,9 +61,11 @@ Resources:
                 - secretsmanager:GetSecretValue
                 - secretsmanager:PutSecretValue
                 - secretsmanager:UpdateSecretVersionStage
-              Resource: 
-                - !Ref TenableApiKey
-                - arn:aws:secretsmanager:us-east-1:773284714180:secret:apikeys/*
+              Resource:
+                - arn:aws:secretsmanager:us-east-1:773284714180:secret:*
+              Condition:
+                  StringEquals:
+                      "aws:ResourceTag/tenable-key-type": tio
             - Effect: Allow
               Action:
                 - secretsmanager:ListSecrets
